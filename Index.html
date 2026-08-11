@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kompres PDF — target ukuran, kualitas terjaga</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  :root{
+    --paper:#EAE7DD;
+    --paper-deep:#DFDBCD;
+    --paper-line:#CFC9B8;
+    --ink:#1B2A41;
+    --ink-soft:#5B6B7C;
+    --ink-faint:#8A93A0;
+    --stamp:#A9312B;
+    --stamp-dark:#7D211D;
+    --seal:#2F6B4F;
+    --seal-bg:#E4ECE6;
+    --white:#F7F6F1;
+    --radius:3px;
+    --shadow:0 1px 0 rgba(27,42,65,0.06), 0 8px 24px -12px rgba(27,42,65,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(27,42,65,0.035) 1px, transparent 0);
+    background-size:22px 22px;
+    color:var(--ink);
+    font-family:'Public Sans', -apple-system, sans-serif;
+    min-height:100vh;
+    padding:40px 20px 80px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+
+  /* ---------- header ---------- */
+  header{margin-bottom:32px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--stamp);
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px;height:1px;background:var(--stamp);
+  }
+  h1{
+    font-family:'Source Serif 4', Georgia, serif;
+    font-weight:600;
+    font-size:clamp(26px, 4vw, 34px);
+    line-height:1.22;
+    margin:0 0 10px;
+    color:var(--ink);
+  }
+  .sub{
+    color:var(--ink-soft);
+    font-size:15px;
+    line-height:1.6;
+    max-width:52ch;
+  }
+  .privacy-note{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin-top:14px;
+    font-size:12.5px;
+    color:var(--seal);
+    background:var(--seal-bg);
+    border:1px solid rgba(47,107,79,0.25);
+    padding:5px 10px;
+    border-radius:20px;
+  }
+
+  /* ---------- card ---------- */
+  .card{
+    background:var(--white);
+    border:1px solid var(--paper-line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    margin-bottom:18px;
+    overflow:hidden;
+  }
+  .card-inner{padding:22px 24px;}
+  .card-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    padding:12px 24px 0;
+  }
+
+  /* ---------- dropzone ---------- */
+  .dropzone{
+    margin:16px 24px 24px;
+    border:1.5px dashed var(--paper-line);
+    border-radius:var(--radius);
+    padding:38px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--stamp);
+    background:#FBF7F1;
+  }
+  .dropzone svg{margin-bottom:12px;color:var(--ink-faint);}
+  .dropzone .dz-title{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;}
+  .dropzone .dz-sub{font-size:13px;color:var(--ink-soft);}
+  .dropzone input{display:none;}
+
+  /* ---------- file info ---------- */
+  .file-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:16px 24px;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .file-thumb{
+    width:44px;height:58px;
+    background:var(--paper);
+    border:1px solid var(--paper-line);
+    border-radius:2px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .file-thumb img{width:100%;height:100%;object-fit:cover;}
+  .file-meta{flex:1;min-width:0;}
+  .file-name{font-weight:600;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .file-stats{font-family:'IBM Plex Mono', monospace;font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .file-change{
+    font-size:12.5px;color:var(--stamp);cursor:pointer;text-decoration:underline;
+    text-underline-offset:2px;flex-shrink:0;
+  }
+
+  /* ---------- settings ---------- */
+  .field{margin-bottom:18px;}
+  .field:last-child{margin-bottom:0;}
+  .field-label{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px;display:block;}
+  .field-hint{font-size:12px;color:var(--ink-faint);margin-top:6px;line-height:1.5;}
+
+  .target-row{display:flex;gap:10px;}
+  .target-row input[type=text]{
+    flex:1;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:20px;font-weight:500;
+    padding:10px 14px;
+    border:1px solid var(--paper-line);
+    border-radius:var(--radius);
+    background:var(--paper);
+    color:var(--ink);
+    width:0;
+  }
+  .target-row input[type=text]:focus{outline:2px solid var(--stamp);outline-offset:1px;}
+  .unit-toggle{display:flex;border:1px solid var(--paper-line);border-radius:var(--radius);overflow:hidden;}
+  .unit-toggle button{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;font-weight:600;
+    padding:0 16px;
+    border:none;background:var(--white);color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .unit-toggle button.active{background:var(--ink);color:var(--white);}
+
+  .priority-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width:480px){
+    .priority-row{grid-template-columns:1fr;}
+  }
+  .priority-opt{
+    border:1px solid var(--paper-line);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    cursor:pointer;
+    background:var(--white);
+  }
+  .priority-opt.active{border-color:var(--stamp);background:#FBF3F1;}
+  .priority-opt .p-title{font-size:13px;font-weight:600;color:var(--ink);}
+  .priority-opt .p-sub{font-size:11.5px;color:var(--ink-soft);margin-top:3px;line-height:1.4;}
+
+  details.advanced{margin-top:16px;}
+  details.advanced summary{
+    font-size:12.5px;color:var(--ink-soft);cursor:pointer;user-select:none;
+    list-style:none;display:flex;align-items:center;gap:6px;
+  }
+  details.advanced summary::-webkit-details-marker{display:none;}
+  details.advanced summary::before{content:"›";font-size:15px;transition:transform .15s;}
+  details.advanced[open] summary::before{transform:rotate(90deg);}
+  .adv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+  .adv-grid label{display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:5px;}
+  .adv-grid input[type=number]{
+    width:100%;padding:7px 10px;border:1px solid var(--paper-line);
+    border-radius:var(--radius);font-family:'IBM Plex Mono', monospace;font-size:13px;
+    background:var(--paper);color:var(--ink);
+  }
+
+  /* ---------- button ---------- */
+  .btn{
+    width:100%;
+    font-family:'Public Sans', sans-serif;
+    font-size:15px;font-weight:700;
+    padding:14px;
+    border:none;border-radius:var(--radius);
+    background:var(--stamp);color:var(--white);
+    cursor:pointer;
+    transition:background .15s, transform .05s;
+    letter-spacing:0.01em;
+  }
+  .btn:hover:not(:disabled){background:var(--stamp-dark);}
+  .btn:active:not(:disabled){transform:scale(0.995);}
+  .btn:disabled{background:var(--ink-faint);cursor:not-allowed;}
+  .btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .btn-ghost{
+    background:none;color:var(--ink-soft);
+    border:1px solid var(--paper-line);
+    font-weight:600;font-size:13px;padding:9px 16px;width:auto;
+  }
+  .btn-ghost:hover{border-color:var(--ink-soft);background:var(--paper);}
+
+  /* ---------- progress / ledger ---------- */
+  .ledger{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    background:var(--ink);
+    color:#CBD5C9;
+    border-radius:var(--radius);
+    padding:14px 16px;
+    max-height:160px;
+    overflow-y:auto;
+  }
+  .ledger .line{padding:2px 0;opacity:0;animation:fadein .25s forwards;}
+  .ledger .line.ok{color:#8FCBA6;}
+  @keyframes fadein{to{opacity:1;}}
+  .status-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .spinner{
+    width:14px;height:14px;border-radius:50%;
+    border:2px solid var(--paper-line);border-top-color:var(--stamp);
+    animation:spin .7s linear infinite;flex-shrink:0;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status-text{font-size:13.5px;color:var(--ink-soft);}
+
+  /* ---------- result ---------- */
+  .result-hero{
+    position:relative;
+    padding:30px 24px 26px;
+    text-align:center;
+    background:
+      linear-gradient(var(--white), var(--white));
+  }
+  .stamp-mark{
+    display:inline-block;
+    border:2.5px solid var(--stamp);
+    color:var(--stamp);
+    border-radius:6px;
+    padding:8px 18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:13px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    transform:rotate(-6deg) scale(0.6);
+    opacity:0;
+    position:relative;
+  }
+  .stamp-mark::before, .stamp-mark::after{
+    content:"";position:absolute;border:1px solid var(--stamp);border-radius:6px;
+    inset:-5px;opacity:0.5;
+  }
+  .stamp-mark.stamped{
+    animation:stampdown .45s cubic-bezier(.2,1.4,.4,1) forwards;
+  }
+  @keyframes stampdown{
+    0%{opacity:0;transform:rotate(-6deg) scale(1.8);}
+    60%{opacity:1;transform:rotate(-6deg) scale(0.92);}
+    100%{opacity:1;transform:rotate(-6deg) scale(1);}
+  }
+  .result-nums{
+    display:flex;justify-content:center;align-items:baseline;gap:18px;
+    margin:22px 0 6px;
+  }
+  .result-num{text-align:center;}
+  .result-num .n{
+    font-family:'IBM Plex Mono', monospace;font-size:26px;font-weight:600;color:var(--ink);
+  }
+  .result-num .l{font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px;}
+  .result-arrow{color:var(--ink-faint);font-size:20px;}
+  .result-reduction{
+    display:inline-block;margin-top:8px;
+    font-size:13px;font-weight:600;color:var(--seal);
+    background:var(--seal-bg);padding:4px 12px;border-radius:20px;
+  }
+  .result-warn{
+    margin:16px 24px 0;padding:12px 14px;
+    background:#FBF3F1;border:1px solid rgba(169,49,43,0.25);
+    border-radius:var(--radius);font-size:12.5px;color:var(--stamp-dark);line-height:1.5;
+  }
+  .gray-note{
+    margin-top:14px;font-size:12.5px;color:var(--ink-soft);
+    background:var(--paper);border:1px solid var(--paper-line);
+    padding:8px 14px;border-radius:20px;display:inline-block;
+  }
+  .result-actions{display:flex;gap:10px;padding:20px 24px 24px;}
+  .result-actions .btn{flex:1;}
+
+  footer{
+    text-align:center;margin-top:36px;font-size:12px;color:var(--ink-faint);
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  .hidden{display:none !important;}
+  @media (prefers-reduced-motion: reduce){
+    .stamp-mark.stamped, .spinner, .ledger .line{animation:none;opacity:1;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Kompresi PDF · di dalam browser Anda</div>
+    <h1>Kecilkan ukuran PDF ke target Anda sendiri.</h1>
+    <p class="sub">Tentukan ukuran akhir yang Anda mau — kompresi berhenti tepat setelah target tercapai, tidak lebih agresif dari yang perlu.</p>
+    <div class="privacy-note">🔒 Diproses langsung di perangkat ini — file tidak diunggah ke server mana pun</div>
+  </header>
+
+  <!-- ===== STEP 1: UPLOAD ===== -->
+  <div class="card" id="card-upload">
+    <div id="dropzone" class="dropzone">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <path d="M14 2v6h6"/>
+        <path d="M12 18v-6M9 15l3-3 3 3"/>
+      </svg>
+      <div class="dz-title">Tarik &amp; lepas berkas PDF di sini</div>
+      <div class="dz-sub">atau klik untuk memilih dari perangkat Anda</div>
+      <input type="file" id="fileInput" accept="application/pdf">
+    </div>
+  </div>
+
+  <!-- ===== STEP 2: SETTINGS (muncul setelah file dipilih) ===== -->
+  <div class="card hidden" id="card-settings">
+    <div class="file-row">
+      <div class="file-thumb"><img id="thumbImg" alt=""></div>
+      <div class="file-meta">
+        <div class="file-name" id="fileName">—</div>
+        <div class="file-stats" id="fileStats">—</div>
+      </div>
+      <span class="file-change" id="btnChangeFile">ganti file</span>
+    </div>
+
+    <div class="card-inner">
+      <div class="field">
+        <label class="field-label" for="targetInput">Target ukuran akhir</label>
+        <div class="target-row">
+          <input type="text" id="targetInput" inputmode="decimal" placeholder="mis. 500" value="1">
+          <div class="unit-toggle">
+            <button type="button" data-unit="KB">KB</button>
+            <button type="button" data-unit="MB" class="active">MB</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Mode warna</label>
+        <div class="priority-row" id="colorModeRow" style="grid-template-columns:1fr 1fr 1fr;">
+          <div class="priority-opt active" data-colormode="auto">
+            <div class="p-title">Otomatis (pintar)</div>
+            <div class="p-sub">Coba pertahankan warna dulu. Baru diubah ke hitam-putih kalau target hanya bisa dicapai dengan cara itu.</div>
+          </div>
+          <div class="priority-opt" data-colormode="color">
+            <div class="p-title">Selalu warna</div>
+            <div class="p-sub">Jangan pernah diubah ke hitam-putih, walau target jadi tidak tercapai.</div>
+          </div>
+          <div class="priority-opt" data-colormode="gray">
+            <div class="p-title">Selalu hitam-putih</div>
+            <div class="p-sub">Langsung ubah ke hitam-putih dari awal — hasil paling kecil untuk dokumen scan teks.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Prioritas</label>
+        <div class="priority-row">
+          <div class="priority-opt active" data-priority="size">
+            <div class="p-title">Pas ke target</div>
+            <div class="p-sub">Dorong ukuran sedekat mungkin ke target, kualitas menyesuaikan.</div>
+          </div>
+          <div class="priority-opt" data-priority="quality">
+            <div class="p-title">Kualitas dulu</div>
+            <div class="p-sub">Berhenti begitu di bawah target tercapai, tidak dikompres lebih jauh.</div>
+          </div>
+        </div>
+      </div>
+
+      <details class="advanced">
+        <summary>Pengaturan lanjutan (batas kualitas minimum)</summary>
+        <div class="adv-grid">
+          <div>
+            <label for="minDpi">Resolusi minimum (DPI)</label>
+            <input type="number" id="minDpi" value="96" min="50" max="300">
+          </div>
+          <div>
+            <label for="minQuality">Kualitas JPEG minimum (1–100)</label>
+            <input type="number" id="minQuality" value="50" min="10" max="100">
+          </div>
+        </div>
+        <p class="field-hint">Kompresi tidak akan pernah turun di bawah batas ini walau target belum tercapai — Anda akan diberi tahu kalau itu terjadi, bukan diam-diam mendapat hasil buram.</p>
+      </details>
+
+      <p class="field-hint" id="rasterNote" style="margin-top:16px;">ℹ️ Karena kompresi berjalan di browser (tanpa server), setiap halaman diproses ulang menjadi gambar resolusi tinggi. Teks tetap tajam untuk dibaca/dicetak, tapi tidak lagi bisa diseleksi/disalin di hasil akhirnya.</p>
+
+      <button class="btn" id="btnCompress" style="margin-top:20px;">Kompres Sekarang</button>
+    </div>
+  </div>
+
+  <!-- ===== STEP 3: PROGRESS ===== -->
+  <div class="card hidden" id="card-progress">
+    <div class="card-inner">
+      <div class="status-row">
+        <div class="spinner"></div>
+        <div class="status-text" id="statusText">Merender halaman…</div>
+      </div>
+      <div class="ledger" id="ledger"></div>
+    </div>
+  </div>
+
+  <!-- ===== STEP 4: RESULT ===== -->
+  <div class="card hidden" id="card-result">
+    <div class="result-hero">
+      <div class="stamp-mark" id="stampMark">Terkompresi ✓</div>
+      <div class="result-nums">
+        <div class="result-num">
+          <div class="n" id="resOriginal">—</div>
+          <div class="l">Semula</div>
+        </div>
+        <div class="result-arrow">→</div>
+        <div class="result-num">
+          <div class="n" id="resFinal">—</div>
+          <div class="l">Hasil</div>
+        </div>
+      </div>
+      <div class="result-reduction" id="resReduction">—</div>
+      <div class="gray-note hidden" id="resGrayNote"></div>
+    </div>
+    <div class="result-warn hidden" id="resWarn"></div>
+    <div class="result-actions">
+      <button class="btn btn-ghost" id="btnReset">Kompres file lain</button>
+      <button class="btn" id="btnDownload">Unduh PDF</button>
+    </div>
+  </div>
+
+  <footer>dijalankan sepenuhnya di browser · pdf.js + pdf-lib</footer>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const { PDFDocument } = PDFLib;
+const PT_PER_IN = 72;
+
+// ---------- state ----------
+let state = {
+  file: null,
+  pdfjsDoc: null,
+  pages: [],        // [{ widthPt, heightPt, baseCanvas, grayCanvas }]
+  originalBytes: 0,
+  unit: "MB",
+  priority: "size",
+  colorMode: "auto", // auto | color | gray
+  resultBytes: null,
+  resultFilename: null,
+};
+
+const $ = (id) => document.getElementById(id);
+const fmtSize = (b) => {
+  if (b < 1024) return b + " B";
+  if (b < 1024*1024) return (b/1024).toFixed(1) + " KB";
+  return (b/1024/1024).toFixed(2) + " MB";
+};
+
+// ---------- dropzone ----------
+const dropzone = $("dropzone");
+const fileInput = $("fileInput");
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault(); dropzone.classList.remove("drag");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+$("btnChangeFile").addEventListener("click", () => {
+  $("card-settings").classList.add("hidden");
+  $("card-upload").classList.remove("hidden");
+  fileInput.value = "";
+});
+
+// ---------- unit / priority toggles ----------
+document.querySelectorAll(".unit-toggle button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".unit-toggle button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.unit = btn.dataset.unit;
+  });
+});
+document.querySelectorAll(".priority-opt[data-priority]").forEach(opt => {
+  opt.addEventListener("click", () => {
+    document.querySelectorAll(".priority-opt[data-priority]").forEach(o => o.classList.remove("active"));
+    opt.classList.add("active");
+    state.priority = opt.dataset.priority;
+  });
+});
+document.querySelectorAll(".priority-opt[data-colormode]").forEach(opt => {
+  opt.addEventListener("click", () => {
+    document.querySelectorAll(".priority-opt[data-colormode]").forEach(o => o.classList.remove("active"));
+    opt.classList.add("active");
+    state.colorMode = opt.dataset.colormode;
+  });
+});
+
+// ---------- load file & render base rasters ----------
+async function handleFile(file) {
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    alert("Mohon pilih berkas PDF.");
+    return;
+  }
+  try {
+    const buf = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+    const pdfDoc = await loadingTask.promise;
+
+    if (pdfDoc.numPages < 1) throw new Error("PDF tidak memiliki halaman.");
+
+    state.file = file;
+    state.originalBytes = file.size;
+    state.pdfjsDoc = pdfDoc;
+
+    $("fileName").textContent = file.name;
+    $("fileStats").textContent = `${pdfDoc.numPages} halaman · ${fmtSize(file.size)}`;
+
+    // thumbnail halaman pertama
+    const firstPage = await pdfDoc.getPage(1);
+    const thumbViewport = firstPage.getViewport({ scale: 0.3 });
+    const thumbCanvas = document.createElement("canvas");
+    thumbCanvas.width = thumbViewport.width;
+    thumbCanvas.height = thumbViewport.height;
+    await firstPage.render({ canvasContext: thumbCanvas.getContext("2d"), viewport: thumbViewport }).promise;
+    $("thumbImg").src = thumbCanvas.toDataURL("image/jpeg", 0.7);
+
+    $("card-upload").classList.add("hidden");
+    $("card-settings").classList.remove("hidden");
+    $("card-result").classList.add("hidden");
+  } catch (err) {
+    console.error(err);
+    alert("Gagal membaca PDF ini. Pastikan berkas tidak rusak atau terkunci kata sandi.\n\nDetail: " + err.message);
+  }
+}
+
+// ---------- rasterize all pages once at max DPI (dipakai ulang untuk semua percobaan) ----------
+const MAX_DPI = 220; // cukup tinggi untuk dokumen hasil scan biasa, tanpa terlalu berat di browser
+
+async function rasterizeAllPages(onProgress) {
+  const pdfDoc = state.pdfjsDoc;
+  const pages = [];
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const viewportPt = page.getViewport({ scale: 1 }); // dalam point (1/72 inch)
+    const scale = MAX_DPI / PT_PER_IN;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    pages.push({
+      widthPt: viewportPt.width,
+      heightPt: viewportPt.height,
+      baseCanvas: canvas,
+    });
+    onProgress(i, pdfDoc.numPages);
+  }
+  return pages;
+}
+
+// ---------- konversi ke hitam-putih (grayscale), dibuat sekali & di-cache per halaman ----------
+function toGrayCanvas(sourceCanvas) {
+  const g = document.createElement("canvas");
+  g.width = sourceCanvas.width;
+  g.height = sourceCanvas.height;
+  const ctx = g.getContext("2d");
+  if ("filter" in ctx) {
+    // jalur cepat (dipercepat GPU) — didukung semua browser modern
+    ctx.filter = "grayscale(1)";
+    ctx.drawImage(sourceCanvas, 0, 0);
+  } else {
+    // fallback manual pakai rumus luminansi standar (kalau ctx.filter tak didukung)
+    ctx.drawImage(sourceCanvas, 0, 0);
+    const imgData = ctx.getImageData(0, 0, g.width, g.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      d[i] = d[i + 1] = d[i + 2] = lum;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+  return g;
+}
+
+// ---------- render satu halaman pada DPI+kualitas+mode warna tertentu (dari cache raster) ----------
+function renderPageAt(pageInfo, dpi, quality, mode) {
+  const sourceCanvas = mode === "gray"
+    ? (pageInfo.grayCanvas || (pageInfo.grayCanvas = toGrayCanvas(pageInfo.baseCanvas)))
+    : pageInfo.baseCanvas;
+  const scaleFactor = dpi / MAX_DPI;
+  const w = Math.max(1, Math.round(sourceCanvas.width * scaleFactor));
+  const h = Math.max(1, Math.round(sourceCanvas.height * scaleFactor));
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sourceCanvas, 0, 0, w, h);
+  return c.toDataURL("image/jpeg", quality / 100);
+}
+
+function dataUrlToBytes(dataUrl) {
+  const base64 = dataUrl.split(",")[1];
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function buildPdfAt(dpi, quality, mode) {
+  const doc = await PDFDocument.create();
+  for (const pageInfo of state.pages) {
+    const dataUrl = renderPageAt(pageInfo, dpi, quality, mode);
+    const jpgBytes = dataUrlToBytes(dataUrl);
+    const jpgImage = await doc.embedJpg(jpgBytes);
+    const page = doc.addPage([pageInfo.widthPt, pageInfo.heightPt]);
+    page.drawImage(jpgImage, { x: 0, y: 0, width: pageInfo.widthPt, height: pageInfo.heightPt });
+  }
+  return doc.save();
+}
+
+function logLine(text, ok) {
+  const ledger = $("ledger");
+  const div = document.createElement("div");
+  div.className = "line" + (ok ? " ok" : "");
+  div.textContent = text;
+  ledger.appendChild(div);
+  ledger.scrollTop = ledger.scrollHeight;
+}
+
+// ---------- kompresi utama ----------
+$("btnCompress").addEventListener("click", async () => {
+  const rawTarget = parseFloat($("targetInput").value.replace(",", "."));
+  if (!rawTarget || rawTarget <= 0) { alert("Masukkan target ukuran yang valid."); return; }
+  const targetBytes = Math.round(rawTarget * (state.unit === "MB" ? 1024*1024 : 1024));
+  const minDpi = Math.max(20, parseInt($("minDpi").value) || 96);
+  const minQuality = Math.min(100, Math.max(10, parseInt($("minQuality").value) || 50));
+  const maxDpi = MAX_DPI;
+  const maxQuality = 90;
+
+  if (minDpi > maxDpi) { alert(`DPI minimum tidak boleh lebih besar dari ${maxDpi}.`); return; }
+
+  $("card-settings").classList.add("hidden");
+  $("card-progress").classList.remove("hidden");
+  $("ledger").innerHTML = "";
+  $("statusText").textContent = "Merender halaman ke resolusi kerja…";
+
+  if (targetBytes >= state.originalBytes) {
+    // sudah lebih kecil dari target, tidak perlu dikompres
+    finishResult(state.file, state.originalBytes, false, "Ukuran file sudah di bawah target — tidak dikompres ulang, file asli dipakai apa adanya.");
+    return;
+  }
+
+  try {
+    // rasterisasi sekali di awal (versi warna; versi abu-abu dibuat on-demand & di-cache)
+    state.pages = await rasterizeAllPages((done, total) => {
+      $("statusText").textContent = `Merender halaman ${done}/${total}…`;
+    });
+
+    $("statusText").textContent = "Mencari kombinasi resolusi & kualitas terbaik…";
+
+    const tryOne = async (dpi, quality, mode) => {
+      const bytes = await buildPdfAt(dpi, quality, mode);
+      const label = mode === "gray" ? "[H&P]" : "[Warna]";
+      logLine(`${label} DPI ${dpi} · Kualitas ${quality}  →  ${fmtSize(bytes.length)}`, bytes.length <= targetBytes);
+      return bytes;
+    };
+
+    // Mencari kombinasi DPI+kualitas terbaik untuk satu mode warna tertentu.
+    // Mengembalikan { bytes, dpi, quality, mode } atau null kalau tak ada yang muat target.
+    async function searchForMode(mode) {
+      let best = null;
+
+      // Tahap 1: binary search DPI, kualitas tetap tinggi
+      let lo = minDpi, hi = maxDpi;
+      while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        const bytes = await tryOne(mid, maxQuality, mode);
+        if (bytes.length <= targetBytes) {
+          if (!best || bytes.length > best.bytes.length) best = { bytes, dpi: mid, quality: maxQuality, mode };
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+
+      // Tahap 2: kalau di DPI minimum masih di atas target, turunkan kualitas JPEG
+      if (!best) {
+        let loQ = minQuality, hiQ = maxQuality;
+        while (loQ <= hiQ) {
+          const midQ = Math.floor((loQ + hiQ) / 2);
+          const bytes = await tryOne(minDpi, midQ, mode);
+          if (bytes.length <= targetBytes) {
+            if (!best || bytes.length > best.bytes.length) best = { bytes, dpi: minDpi, quality: midQ, mode };
+            loQ = midQ + 1;
+          } else {
+            hiQ = midQ - 1;
+          }
+        }
+      } else if (state.priority === "size" && best.quality < 100) {
+        // Mode "Pas ke target": DPI sudah maksimal, masih ada sisa jatah ukuran.
+        // Dorong kualitas JPEG naik selama masih <= target, biar hasil akhir
+        // sedekat mungkin ke target alih-alih undershoot jauh.
+        let loQ = best.quality, hiQ = 100;
+        while (loQ <= hiQ) {
+          const midQ = Math.floor((loQ + hiQ) / 2);
+          const bytes = await tryOne(best.dpi, midQ, mode);
+          if (bytes.length <= targetBytes) {
+            if (bytes.length > best.bytes.length) best = { bytes, dpi: best.dpi, quality: midQ, mode };
+            loQ = midQ + 1;
+          } else {
+            hiQ = midQ - 1;
+          }
+        }
+      }
+      return best;
+    }
+
+    let best = null;
+    let switchedToGray = false;
+
+    if (state.colorMode === "gray") {
+      // pengguna eksplisit minta hitam-putih dari awal
+      best = await searchForMode("gray");
+    } else {
+      // "auto" atau "color": coba warna dulu
+      best = await searchForMode("color");
+      if (!best && state.colorMode === "auto") {
+        // warna mentok di batas kualitas minimum tapi target belum tercapai ->
+        // ini situasi "kompresi sangat ekstrem", otomatis coba hitam-putih
+        $("statusText").textContent = "Warna belum cukup kecil — mencoba mode hitam-putih…";
+        logLine("— target tak tercapai dalam mode warna, mencoba hitam-putih —", false);
+        best = await searchForMode("gray");
+        if (best) switchedToGray = true;
+      }
+    }
+
+    if (best) {
+      finishResult(best.bytes, best.bytes.length, false, null, best.dpi, best.quality, switchedToGray);
+    } else {
+      // tak pernah tercapai walau di batas minimum -> pakai hasil terkecil yang bisa didapat
+      const fallbackMode = state.colorMode === "color" ? "color" : "gray";
+      const bytes = await buildPdfAt(minDpi, minQuality, fallbackMode);
+      const modeLabel = fallbackMode === "gray" ? " (sudah dalam mode hitam-putih)" : "";
+      finishResult(
+        bytes, bytes.length, true,
+        `Target ${fmtSize(targetBytes)} tidak tercapai tanpa melewati batas kualitas minimum yang Anda tentukan (DPI ${minDpi}, kualitas ${minQuality})${modeLabel}. Hasil terbaik yang bisa dicapai: ${fmtSize(bytes.length)}. Coba turunkan batas DPI/kualitas minimum di Pengaturan lanjutan${state.colorMode === "color" ? ", atau izinkan mode hitam-putih" : ""} kalau ukuran lebih kecil tetap diperlukan.`,
+        minDpi, minQuality, fallbackMode === "gray"
+      );
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Terjadi kesalahan saat mengompres PDF ini.\n\nDetail: " + err.message + "\n\nCoba muat ulang halaman dan ulangi, atau gunakan berkas PDF lain.");
+    $("card-progress").classList.add("hidden");
+    $("card-settings").classList.remove("hidden");
+  }
+});
+
+function finishResult(bytesOrFile, finalSize, isWarning, warnMsg, dpi, quality, isGray) {
+  state.resultBytes = bytesOrFile instanceof Uint8Array || bytesOrFile instanceof ArrayBuffer ? bytesOrFile : null;
+  state.resultIsOriginalFile = !state.resultBytes;
+  state.resultFile = state.resultIsOriginalFile ? bytesOrFile : null;
+  state.resultFilename = state.file.name.replace(/\.pdf$/i, "") + "_compressed.pdf";
+
+  $("card-progress").classList.add("hidden");
+  $("card-result").classList.remove("hidden");
+
+  $("resOriginal").textContent = fmtSize(state.originalBytes);
+  $("resFinal").textContent = fmtSize(finalSize);
+  const reduction = Math.max(0, (1 - finalSize / state.originalBytes) * 100);
+  $("resReduction").textContent = reduction > 0.5 ? `−${reduction.toFixed(1)}%` : "tanpa perubahan";
+
+  const grayNote = $("resGrayNote");
+  if (isGray && state.colorMode === "auto") {
+    grayNote.textContent = "⚫ Diubah otomatis ke hitam-putih — kompresi ekstrem diperlukan untuk mencapai target ini.";
+    grayNote.classList.remove("hidden");
+  } else if (isGray) {
+    grayNote.textContent = "⚫ Diproses dalam mode hitam-putih (sesuai pilihan Anda).";
+    grayNote.classList.remove("hidden");
+  } else {
+    grayNote.classList.add("hidden");
+  }
+
+  const warnBox = $("resWarn");
+  if (warnMsg) {
+    warnBox.textContent = "⚠ " + warnMsg;
+    warnBox.classList.remove("hidden");
+  } else {
+    warnBox.classList.add("hidden");
+  }
+
+  const stamp = $("stampMark");
+  stamp.classList.remove("stamped");
+  void stamp.offsetWidth; // restart animasi
+  requestAnimationFrame(() => stamp.classList.add("stamped"));
+}
+
+$("btnDownload").addEventListener("click", () => {
+  let blob;
+  if (state.resultIsOriginalFile) {
+    blob = state.resultFile;
+  } else {
+    blob = new Blob([state.resultBytes], { type: "application/pdf" });
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = state.resultFilename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+$("btnReset").addEventListener("click", () => {
+  state = { file: null, pdfjsDoc: null, pages: [], originalBytes: 0, unit: state.unit, priority: state.priority, colorMode: state.colorMode };
+  fileInput.value = "";
+  $("resGrayNote").classList.add("hidden");
+  $("card-result").classList.add("hidden");
+  $("card-progress").classList.add("hidden");
+  $("card-upload").classList.remove("hidden");
+});
+</script>
+</body>
+</html>
